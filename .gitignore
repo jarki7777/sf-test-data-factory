@@ -1,0 +1,4 @@
+.sfdx/
+.sf/
+manifest/
+sfdx-project.json
