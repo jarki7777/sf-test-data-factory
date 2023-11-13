@@ -66,3 +66,6 @@ make(sObjectApiName, rtDevName, count);
 #
 #### Test coverage
 To get a proper code coverage I suggest you to go to TestDataFactory_Test and uncomment and modify accordingly the last 3 tests. The last one is specially important if you have any dependant picklist in your org.
+#
+#### What's next?
+I want to add an onCascade and onReverseCaseCade methods to populate both parent and children related objects.
