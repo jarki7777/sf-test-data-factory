@@ -1,5 +1,5 @@
 // TO DO:
-// related records, makeOnCascade, makeOnReverseCascade, insertOnCascade, insertOnReverseCascade
+// related records: makeOnCascade, makeOnReverseCascade
 
 // Code coverage will plummet well below 75% if the org has no RecordTypes nor dependant picklists
 

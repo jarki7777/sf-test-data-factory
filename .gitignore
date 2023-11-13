@@ -2,3 +2,6 @@
 .sf/
 manifest/
 sfdx-project.json
+package.json
+package-lock.json
+node_modules/
