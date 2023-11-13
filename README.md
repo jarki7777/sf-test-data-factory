@@ -63,3 +63,6 @@ make(sObjectApiName, count);
 make(sObjectApiName, rtDevName);
 make(sObjectApiName, rtDevName, count);
 ````
+#
+#### Test coverage
+To get a proper code coverage I suggest you to go to TestDataFactory_Test and uncomment and modify accordingly the last 3 tests. The last one is specially important if you have any dependant picklist in your org.
