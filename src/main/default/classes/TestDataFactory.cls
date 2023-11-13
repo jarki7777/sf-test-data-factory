@@ -14,14 +14,11 @@ public with sharing class TestDataFactory {
     private static final String NUMS = '123456789';
     private static final String BASE64MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-    @TestVisible
-    private TestDataFactory() {}
-
     public void insertTestSObjects(String sObjectApiName) {
         createSObjectInstance(sObjectApiName);
         populateRequiredFields(getRequiredFields(sObjectApiName));
         try {
-            insert this.obj;            
+            insert this.obj;
         } catch (DmlException ex) {
             throw new TestDataFactoryException(ex);
         }        
