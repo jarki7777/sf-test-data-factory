@@ -41,7 +41,7 @@ static void makeData() {
     tdf.make('Account').insertData();
 
 
-    // directly insert the data:
+    // populate some fields before inserting the data:
     tdf.make('Account')
         .withField('Name', 'tdf account')
         .withField('Type', 'Prospect')
