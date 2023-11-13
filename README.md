@@ -37,6 +37,10 @@ To create data for your tests just create a new TestDataFactory instance and use
 static void makeData() {
     TestDataFactory tdf = new TestDataFactory();
 
+    // teh simplest way:
+    tdf.make('Account').insertData();
+
+
     // directly insert the data:
     tdf.make('Account')
         .withField('Name', 'tdf account')
