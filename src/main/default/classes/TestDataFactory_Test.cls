@@ -2,7 +2,155 @@
 private class TestDataFactory_Test {
     
     @IsTest
-    static void itShouldInsertTestSObject() {
+    static void itShouldMakeObject() {
+        // given
+        String sObjectApiName = 'Account';
+
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        tdf.make(sObjectApiName);
+        Account acct = (Account) tdf.obj;
+        Test.stopTest();
+
+        // when
+        List<Account> persistedAccts = [SELECT Id FROM Account];
+
+        Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
+        Assert.isNotNull(acct, 'Result shouldn\'t be null');
+        Assert.isNotNull(acct.Name, 'Account Name is required');
+    }
+
+    @IsTest
+    static void itShouldMakeObjects() {
+        // given
+        String sObjectApiName = 'Account';
+        Integer count = 10;
+
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        tdf.make(sObjectApiName, count);
+        List<Account> accts = (List<Account>) tdf.objs;
+        Test.stopTest();
+
+        // when
+        List<Account> persistedAccts = [SELECT Id FROM Account];
+
+        Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
+        Assert.isNotNull(accts, 'Result shouldn\'t be null');
+        for (Account acct : accts) {
+            Assert.isNotNull(acct.Name, 'Account Name is required');
+        }
+    }
+
+    @IsTest
+    static void itShouldMakeWithFields() {
+        // given
+        String sObjectApiName = 'Account';
+        String name = 'Website';
+        String value = 'https://www.salesforce.com/';
+
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        tdf.make(sObjectApiName)
+            .withField(name, value);
+        Account acct = (Account) tdf.obj;
+        Test.stopTest();
+
+        // then
+        List<Account> persistedAccts = [SELECT Id FROM Account];
+
+        Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
+        Assert.isNotNull(acct, 'Result shouldn\'t be null');
+        Assert.isNotNull(acct.Name, 'Account Name is required');
+        Assert.areEqual(value, acct.Website, 'Website should be the specified');
+    }
+
+    @IsTest
+    static void itShouldMakeCountWithFields() {
+        // given
+        String sObjectApiName = 'Account';
+        String name = 'Website';
+        String value = 'https://www.salesforce.com/';
+
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        tdf.make(sObjectApiName, 10)
+            .withField(name, value);
+        List<Account> accts = (List<Account>) tdf.objs;
+        Test.stopTest();
+
+        // then
+        List<Account> persistedAccts = [SELECT Id FROM Account];
+
+        Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
+        Assert.isNotNull(accts, 'Result shouldn\'t be null');
+
+        for (Account acct : accts) {
+            Assert.isNotNull(acct.Name, 'Account Name is required');
+            Assert.areEqual(value, acct.Website, 'Website should be the specified');            
+        }
+    }
+
+    @IsTest
+    static void itShouldMakeWithRecordType() {
+        List<RecordType> rt = [SELECT Id, SObjectType, DeveloperName FROM RecordType];
+
+        if (!rt.isEmpty()) {
+            // given
+            String sObjectApiName = rt[0].SObjectType;
+            String rtDevName = rt[0].DeveloperName;
+
+            // when
+            Test.startTest();
+            TestDataFactory tdf = new TestDataFactory();
+            tdf.make(sObjectApiName, rtDevName);
+            SObject obj = tdf.obj;
+            Test.stopTest();
+
+            // then
+            List<Account> persistedAccts = Database.query('SELECT Id, RecordTypeId FROM ' + sObjectApiName);
+
+            Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
+            Assert.isNotNull(obj, 'Result shouldn\'t be null');
+            Assert.areEqual(rt[0].Id, obj.get('RecordTypeId'), 'Result should be successfull');
+        }
+    }
+
+    @IsTest
+    static void itShouldMakeWithRecordTypeCount() {
+        List<RecordType> rt = [SELECT Id, SObjectType, DeveloperName FROM RecordType LIMIT 1];
+
+        if (!rt.isEmpty()) {
+            // given
+            String sObjectApiName = rt[0].SObjectType;
+            String rtDevName = rt[0].DeveloperName;
+            Integer count = 10;
+
+            // when
+            Test.startTest();
+            TestDataFactory tdf = new TestDataFactory();
+            tdf.make(sObjectApiName, rtDevName, count);
+            List<SObject> objs = tdf.objs;
+            Test.stopTest();
+
+            // then
+            List<Account> persistedAccts = Database.query('SELECT Id, RecordTypeId FROM ' + sObjectApiName);
+
+            Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
+            Assert.areEqual(count, objs.size());
+            Assert.isNotNull(objs, 'Result shouldn\'t be null');
+            for (SObject obj : objs) {
+                Assert.areEqual(rt[0].Id, obj.get('RecordTypeId'), 'Result should be successfull');
+            }
+        }
+    }
+
+    @IsTest
+    static void itShouldInsertData() {
         // given
         String sObjectApiName = 'Account';
 
@@ -10,7 +158,7 @@ private class TestDataFactory_Test {
         Test.startTest();
         TestDataFactory tdf = new TestDataFactory();
         try {
-            tdf.insertTestSObjects(sObjectApiName);
+            tdf.make(sObjectApiName).insertData();
         } catch (TestDataFactoryException ex) {
             // Tried to insert a record with a bad value for restricted picklist.
             return;
@@ -23,9 +171,9 @@ private class TestDataFactory_Test {
         Assert.isFalse(result.isEmpty(), 'result should contain records');
         Assert.areEqual(1, result.size(), 'Result have 1 Account record');
     }
-    
+
     @IsTest
-    static void itShouldInsertTestSObjects() {
+    static void itShouldInsertDataCount() {
         // given
         String sObjectApiName = 'Account';
         Integer count = 10;
@@ -34,7 +182,7 @@ private class TestDataFactory_Test {
         Test.startTest();
         TestDataFactory tdf = new TestDataFactory();
         try {
-            tdf.insertTestSObjects(sObjectApiName, count);
+            tdf.make(sObjectApiName, 10).insertData();
         } catch (TestDataFactoryException ex) {
             // Tried to insert a record with a bad value for restricted picklist.
             return;
@@ -45,134 +193,7 @@ private class TestDataFactory_Test {
         List<Account> result = [SELECT Id FROM Account];
         Assert.isNotNull(result, 'Result shouldn\'t be null');
         Assert.isFalse(result.isEmpty(), 'result should contain records');
-        Assert.areEqual(10, result.size(), 'Result have 10 Account records');
-    }
-    
-    // It is currently not possible to get picklist values by recordtype without callouts to UI API
-    // so if a certain RecordType is specified, and different RecordTypes have different picklist values
-    // the picklist values must be specified aswell.
-    @IsTest
-    static void itShouldInsertTestSObjectsByRecordTypeWithPicklistValues() {
-        // given
-        List<RecordType> rt = [SELECT Id, SObjectType, DeveloperName FROM RecordType LIMIT 1];
-
-        if (!rt.isEmpty()) {
-            String sObjectApiName = rt[0].SObjectType;
-            Integer count = 1;
-            String rtDevname = rt[0].DeveloperName;
-            Map<String, Schema.SObjectField> fieldsMap = Schema.getGlobalDescribe().get(sObjectApiName).getDescribe().fields.getMap();
-            Map<String, String> picklistValues = new Map<String, String>();
-
-            for (String fieldName : fieldsMap.keySet()) {
-                Schema.DescribeFieldResult dfr = fieldsMap.get(fieldName.toLowerCase()).getDescribe();
-                if (dfr.getType() == Schema.DisplayType.PICKLIST || dfr.getType() == Schema.DisplayType.MULTIPICKLIST) {
-                    List<Schema.PicklistEntry> entries = fieldsMap.get(fieldName.toLowerCase()).getDescribe().getPicklistValues();
-                    picklistValues.put(fieldName, TestDataFactory.getRandomPicklistValue(entries));
-                }
-            }
-
-            if (picklistValues.values().size() < 1) return;
-    
-            // when
-            Test.startTest();
-            TestDataFactory tdf = new TestDataFactory();
-            try {
-                tdf.insertTestSObjects(sObjectApiName, count, rtDevname, picklistValues);                
-            } catch (TestDataFactoryException ex) {
-                // Tried to insert a record with a bad value for restricted picklist.
-                return;
-            }
-            Test.stopTest();
-    
-            // then
-            String picklistFields = String.join(picklistValues.keySet(), ',');
-            String query = 'SELECT Id, RecordTypeId, ' + picklistFields + ' FROM ' + sObjectApiName;
-            List<SObject> results = Database.query(query);
-
-            Assert.isNotNull(results, 'Result shouldn\'t be null');
-            Assert.isFalse(results.isEmpty(), 'result should contain records');
-            Assert.areEqual(1, results.size(), 'Result have 10 Account records');
-
-            for (SObject record : results) {
-                Assert.areEqual(rt[0].Id, record.get('RecordTypeId'), 'Result should be successfull');
-
-                for (String fieldName : picklistValues.keySet()) {
-                    Assert.isNotNull(record.get(fieldName), 'Picklist value shouldn\' be null');
-                }
-            }
-        }
-    }
-
-    // Insert with RecordType might fail because of restricted picklist values for different RecordTypes
-    @IsTest
-    static void itShouldTryInsertTestSObjectsByRecordType() {
-        // given
-        List<RecordType> rt = [SELECT Id, SObjectType, DeveloperName FROM RecordType LIMIT 1];
-
-        if (!rt.isEmpty()) {
-            String sObjectApiName = rt[0].SObjectType;
-            Integer count = 10;
-            String rtDevname = rt[0].DeveloperName;
-    
-            // when
-            Test.startTest();
-            TestDataFactory tdf = new TestDataFactory();
-            try {
-                tdf.insertTestSObjects(sObjectApiName, count, rtDevname);                
-            } catch (TestDataFactoryException ex) {
-                // Tried to insert a record with a bad value for restricted picklist.
-                return;
-            }
-            Test.stopTest();
-    
-            // then
-            String query = 'SELECT Id, RecordTypeId FROM ' + sObjectApiName;
-            for (SObject record : Database.query(query)) {
-                Assert.areEqual(rt[0].Id, record.get('RecordTypeId'), 'Result should be successfull');
-            }
-        }
-    }
-    
-    @IsTest
-    static void itShouldCreateTestSObject() {
-        // given
-        String sObjectApiName = 'Account';
-
-        // when
-        Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Account acct = (Account) tdf.createTestSObjects(sObjectApiName);
-        Test.stopTest();
-
-        // then
-        List<Account> persistedAccts = [SELECT Id FROM Account];
-        Assert.isNotNull(acct, 'Result shouldn\'t be null');
-        Assert.isNotNull(acct.Name, 'Account Name is required');
-        Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
-    }
-
-        
-    @IsTest
-    static void itShouldCreateTestSObjects() {
-        // given
-        String sObjectApiName = 'Account';
-        Integer count = 10;
-
-        // when
-        Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        List<Account> results = (List<Account>) tdf.createTestSObjects(sObjectApiName, count);
-        Test.stopTest();
-
-        // then
-        List<Account> persistedAccts = [SELECT Id FROM Account];
-        Assert.isNotNull(results, 'Result shouldn\'t be null');
-        Assert.areEqual(count, results.size(), 'All records should\'ve been created');
-        Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
-
-        for (Account res : results) {
-            Assert.isNotNull(res.Name, 'Account Name is required');
-        }
+        Assert.areEqual(10, result.size(), 'Result have 1 Account record');
     }
 
     @IsTest 
@@ -512,7 +533,7 @@ private class TestDataFactory_Test {
 
         // then
         Assert.isNotNull(value, 'Value shouldn\'t be null');
-        Assert.isInstanceOfType(value, Url.class, 'Value should be an instance of Url');
+        Assert.isInstanceOfType(value, String.class, 'Value should be an instance of String');
     }
     
     @IsTest
@@ -547,7 +568,7 @@ private class TestDataFactory_Test {
         }
 
         // then
-        String msg = 'Insert failed, the provided picklist value for field (CleanStatus) is not valid for this record';
+        String msg = 'Insert failed, the provided value for field (CleanStatus) is not valid for this record';
         Assert.areEqual(msg, tdfEx.getMessage());
     }
 
@@ -566,7 +587,7 @@ private class TestDataFactory_Test {
         }
 
         // then
-        String msg = 'Insert failed, (CleanStatus) has restricted values by Record Type. Please use a different method overload';
+        String msg = 'Insert failed, (CleanStatus) has restricted values by Record Type. Please use withField method';
         Assert.areEqual(msg, tdfEx.getMessage());
     }
 

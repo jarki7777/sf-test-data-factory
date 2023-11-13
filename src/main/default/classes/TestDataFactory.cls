@@ -1,104 +1,78 @@
 // TO DO:
-// related records, createOnCascade, createOnReverseCascade, insertOnCascade, insertOnReverseCascade
-// validation rules -> catch custom validation exception and throw tdf exception
+// related records, makeOnCascade, makeOnReverseCascade, insertOnCascade, insertOnReverseCascade
 
-// Code coverage will plummet below 60% if the org has no RecordTypes
-// I had to add catch blocks on every insert test because of CleanStatus field throwing FIELD_INTEGRITY_EXCEPTION on some values
-// Still trying to find a way to to test validation rule exceptions
+// Code coverage will plummet well below 75% if the org has no RecordTypes nor dependant picklists
 
 public with sharing class TestDataFactory {
 
     @TestVisible
-    private SObject obj;
+    public SObject obj { get; private set; }
+    public List<SObject> objs { get; private set; }
     private static final String CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz';
     private static final String NUMS = '123456789';
     private static final String BASE64MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-    public void insertTestSObjects(String sObjectApiName) {
+    public TestDataFactory make(String sObjectApiName) {
         createSObjectInstance(sObjectApiName);
         populateRequiredFields(getRequiredFields(sObjectApiName));
-        try {
-            insert this.obj;
-        } catch (DmlException ex) {
-            throw new TestDataFactoryException(ex);
-        }        
+        return this;
     }
 
-    public void insertTestSObjects(String sObjectApiName, Integer count) {
+    public TestDataFactory make(String sObjectApiName, Integer count) {
 
-        List<SObject> results = new List<SObject>();
+        this.objs = new List<SObject>();
+
         for (Integer i = 0; i < count; i++) {
-            results.add(createTestSObjects(sObjectApiName));
-        }
-
-        try {
-            insert results;            
-        } catch (DmlException ex) {
-            throw new TestDataFactoryException(ex);
-        }
-    }
-
-    public void insertTestSObjects(String sObjectApiName, Integer count, String rtDevName, Map<String, String> pickListValues) {
-        List<SObject> results = createTestSObjects(sObjectApiName, count, rtDevName, pickListValues);
-        try {
-            insert results;            
-        } catch (DmlException ex) {
-            throw new TestDataFactoryException(ex);
-        }
-    }
-
-    public void insertTestSObjects(String sObjectApiName, Integer count, String rtDevName) {
-        List<SObject> results = createTestSObjects(sObjectApiName, count, rtDevName);
-        try {
-            insert results;            
-        } catch (DmlException ex) {
-            throw new TestDataFactoryException(ex);
-        }
-    }
-
-    public SObject createTestSObjects(String sObjectApiName) {
-        createSObjectInstance(sObjectApiName);
-        populateRequiredFields(getRequiredFields(sObjectApiName));
-        return this.obj;
-    }
-
-    public List<SObject> createTestSObjects(String sObjectApiName, Integer count) {
-        
-        List<SObject> results = new List<SObject>();
-        for (Integer i = 0; i < count; i++) {
-            results.add(createTestSObjects(sObjectApiName));
-        }
-
-        return results;
-    }
-
-    public List<SObject> createTestSObjects(
-        String sObjectApiName, 
-        Integer count, 
-        String rtDevName, 
-        Map<String, String> pickListValues) 
-    {
-
-        List<SObject> results = new List<SObject>();
-        for (Integer i = 0; i < count; i++) {
-            createSObjectInstance(sObjectApiName, rtDevName, pickListValues);
+            createSObjectInstance(sObjectApiName);
             populateRequiredFields(getRequiredFields(sObjectApiName));
-            results.add(this.obj);
+            this.objs.add(this.obj);
         }
-
-        return results;
+        return this;
     }
 
-    public List<SObject> createTestSObjects(String sObjectApiName, Integer count, String rtDevName) {
+    public TestDataFactory make(String sObjectApiName, String rtDevName) {
+        createSObjectInstance(sObjectApiName, rtDevName);
+        populateRequiredFields(getRequiredFields(sObjectApiName));
+        return this;
+    }
 
-        List<SObject> results = new List<SObject>();
+    public TestDataFactory make(String sObjectApiName, String rtDevName, Integer count) {
+
+        this.objs = new List<SObject>();
+
         for (Integer i = 0; i < count; i++) {
             createSObjectInstance(sObjectApiName, rtDevName);
             populateRequiredFields(getRequiredFields(sObjectApiName));
-            results.add(this.obj);
+            this.objs.add(this.obj);
         }
 
-        return results;
+        return this;
+    }
+
+    public TestDataFactory withField(String name, Object value) {
+
+        if (this.objs != null) {
+            for (SObject currentObj : this.objs) {
+                currentObj.put(name, value);
+            }
+        } else {
+            this.obj.put(name, value);
+        }
+
+        return this;
+    }
+
+    public void insertData() {
+
+        try {
+            if (this.objs != null && !this.objs.isEmpty()) {
+                insert this.objs;
+            } else {
+                insert this.obj;
+            }            
+        } catch (DmlException ex) {
+            throw new TestDataFactoryException(ex);
+        }
     }
 
     @TestVisible
@@ -106,19 +80,6 @@ public with sharing class TestDataFactory {
 
         SObjectType sObjType = ((SObject) Type.forName(sObjectApiName).newInstance()).getSObjectType();
         this.obj = sObjType.newSObject();
-    }
-
-    @TestVisible
-    private void createSObjectInstance(String sObjectApiName, String rtDevName, Map<String, String> pickListValues) {
-
-        SObjectType sObjType = ((SObject) Type.forName(sObjectApiName).newInstance()).getSObjectType();
-        Schema.DescribeSObjectResult objDescribe = Schema.getGlobalDescribe().get(sObjectApiName).getDescribe();
-        String rtId = objDescribe.getRecordTypeInfosByDeveloperName().get(rtDevName).getRecordTypeId();
-        this.obj = sObjType.newSObject(rtId, true);
-
-        for (String field : pickListValues.keySet()) {
-            this.obj.put(field, pickListValues.get(field));
-        }
     }
 
     @TestVisible
@@ -213,7 +174,7 @@ public with sharing class TestDataFactory {
             } when TIME {
                 value = Time.newInstance(1, 2, 3, 4);
             } when URL {
-                value = new Url('https://www.salesforce.com/');
+                value = 'https://www.salesforce.com/';
             }
         }
 
