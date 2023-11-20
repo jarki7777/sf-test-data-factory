@@ -122,7 +122,7 @@ private class TestDataFactory_Test {
 
     @IsTest
     static void itShouldMakeWithRecordTypeCount() {
-        List<RecordType> rt = [SELECT Id, SObjectType, DeveloperName FROM RecordType LIMIT 1];
+        List<RecordType> rt = [SELECT Id, SObjectType, DeveloperName FROM RecordType];
 
         if (!rt.isEmpty()) {
             // given
