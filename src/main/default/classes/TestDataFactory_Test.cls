@@ -204,13 +204,12 @@ private class TestDataFactory_Test {
         // when
         Test.startTest();
         TestDataFactory tdf = new TestDataFactory();
-        tdf.createSObjectInstance(sObjectApiName);
-        SObject o = tdf.obj;
+        SObject obj = tdf.createSObjectInstance(sObjectApiName);
         Test.stopTest();
 
         // then
-        Assert.isNotNull(o, 'Object instance shouldn\'t be null');
-        Assert.isTrue(o instanceof Account, 'Should be an instance of Account');
+        Assert.isNotNull(obj, 'Object instance shouldn\'t be null');
+        Assert.isTrue(obj instanceof Account, 'Should be an instance of Account');
     }
 
     @IsTest
@@ -237,9 +236,9 @@ private class TestDataFactory_Test {
         // when
         Test.startTest();
         TestDataFactory tdf = new TestDataFactory();
-        tdf.createSObjectInstance(sObjectApiName);
-        tdf.populateRequiredFields(tdf.getRequiredFields(sObjectApiName));
-        Account acct = (Account) tdf.obj; 
+        SObject obj = tdf.createSObjectInstance(sObjectApiName);
+        tdf.populateRequiredFields(tdf.getRequiredFields(sObjectApiName), obj);
+        Account acct = (Account) obj; 
         Test.stopTest();
 
         // then
@@ -257,9 +256,9 @@ private class TestDataFactory_Test {
         // when
         Test.startTest();
         TestDataFactory tdf = new TestDataFactory();
-        tdf.createSObjectInstance(sObjectApiName);
-        tdf.populateRequiredFields(pickListMap);
-        Account acct = (Account) tdf.obj; 
+        SObject obj = tdf.createSObjectInstance(sObjectApiName);
+        tdf.populateRequiredFields(pickListMap, obj);
+        Account acct = (Account) obj; 
         Test.stopTest();
 
         // then
@@ -463,7 +462,7 @@ private class TestDataFactory_Test {
         Test.startTest();
         TestDataFactory tdf = new TestDataFactory();
         tdf.obj = new Account(Name = 'Test');
-        tdf.handlePopulatePicklist(field);
+        tdf.handlePopulatePicklist(field, tdf.obj);
         Test.stopTest();
 
         // then
@@ -592,62 +591,91 @@ private class TestDataFactory_Test {
     }
 
     // Uncomment this in case your org has a Percent field and modify accordingly. 
-    // @IsTest
-    // static void itShouldGetFieldPercentValue() {
-    //     // given
-    //     Schema.DisplayType type = Schema.DisplayType.PERCENT;
-    //     // Modify this line according to your Object and Field
-    //     Schema.SObjectField field = Schema.SObjectType.Account.fields.getMap().get('YOUR_PERCENT_FIELD__c');
+    @IsTest
+    static void itShouldGetFieldPercentValue() {
+        // given
+        Schema.DisplayType type = Schema.DisplayType.PERCENT;
+        // Modify this line according to your Object and Field
+        Schema.SObjectField field = Schema.SObjectType.Account.fields.getMap().get('YOUR_PERCENT_FIELD__c');
 
-    //     // when
-    //     Test.startTest();
-    //     TestDataFactory tdf = new TestDataFactory();
-    //     Object value = tdf.getFieldValue(type, field);
-    //     Test.stopTest();
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        Object value = tdf.getFieldValue(type, field);
+        Test.stopTest();
 
-    //     // then
-    //     Assert.isNotNull(value, 'Value shouldn\'t be null');
-    //     Assert.isInstanceOfType(value, Double.class, 'Value should be an instance of Double');
-    // }
+        // then
+        Assert.isNotNull(value, 'Value shouldn\'t be null');
+        Assert.isInstanceOfType(value, Double.class, 'Value should be an instance of Double');
+    }
 
 
     // Uncomment this in case your org has a Multipicklist field and modify accordingly. 
-    // @IsTest
-    // static void itShouldPopulateMultipicklistValue() {
-    //     // given
-    //     Schema.DisplayType type = Schema.DisplayType.MULTIPICKLIST;
-    //     // Modify this line according to your Object and Field
-    //     Schema.SObjectField field = Schema.SObjectType.Account.fields.getMap().get('YOUR_MULTIPICKLIST_FIELD__c');
+    @IsTest
+    static void itShouldPopulateMultipicklistValue() {
+        // given
+        Schema.DisplayType type = Schema.DisplayType.MULTIPICKLIST;
+        // Modify this line according to your Object and Field
+        Schema.SObjectField field = Schema.SObjectType.Account.fields.getMap().get('YOUR_MULTIPICKLIST_FIELD__c');
 
-    //     // when
-    //     Test.startTest();
-    //     TestDataFactory tdf = new TestDataFactory();
-    //     tdf.obj = new Account(Name = 'Test');
-    //     tdf.handlePopulatePicklist(field);
-    //     Test.stopTest();
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        tdf.obj = new Account(Name = 'Test');
+        tdf.handlePopulatePicklist(field, tdf.obj);
+        Test.stopTest();
 
-    //     // then
-    //     Assert.isNotNull(tdf.obj.get('YOUR_MULTIPICKLIST_FIELD__c'), 'YOUR_MULTIPICKLIST_FIELD__c shouldn\'t be null');
-    // }
+        // then
+        Assert.isNotNull(tdf.obj.get('YOUR_MULTIPICKLIST_FIELD__c'), 'YOUR_MULTIPICKLIST_FIELD__c shouldn\'t be null');
+    }
 
     // Uncomment this in case your org has dependent picklists and modify accordingly
-    // @IsTest
-    // static void itShouldPopulatePicklistFieldWithDependencies() {
-    //     // given
-    //     String dependantName = 'YOUR_DEPENDANT_FIELD__c';
-    //     String controllerName = 'Type';
-    //     Schema.SObjectField dependantField = Schema.SObjectType.Account.fields.getMap().get(dependantName);
+    @IsTest
+    static void itShouldPopulatePicklistFieldWithDependencies() {
+        // given
+        String dependantName = 'YOUR_DEPENDANT_FIELD__c';
+        String controllerName = 'Type';
+        Schema.SObjectField dependantField = Schema.SObjectType.Account.fields.getMap().get(dependantName);
 
-    //     // when
-    //     Test.startTest();
-    //     TestDataFactory tdf = new TestDataFactory();
-    //     tdf.obj = new Account(Name = 'Test');
-    //     tdf.populatePicklistFieldWithDependencies(dependantField);
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        tdf.obj = new Account(Name = 'Test');
+        tdf.populatePicklistFieldWithDependencies(dependantField, tdf.obj);
 
-    //     Test.stopTest();
+        Test.stopTest();
 
-    //     // then
-    //     Assert.isNotNull(tdf.obj.get(dependantName), 'YOUR_DEPENDANT_FIELD__c shouldn\'t be null');
-    //     Assert.isNotNull(tdf.obj.get(controllerName), 'controllerName shouldn\'t be null');
-    // }
+        // then
+        Assert.isNotNull(tdf.obj.get(dependantName), 'YOUR_DEPENDANT_FIELD__c shouldn\'t be null');
+        Assert.isNotNull(tdf.obj.get(controllerName), 'controllerName shouldn\'t be null');
+    }
+
+    @IsTest
+    static void itShouldInsertRecordWithChild() {
+        // given
+        String parentName = 'Account';
+        String childName = 'Opportunity';
+
+        // when
+        Test.startTest();
+        TestDataFactory tdf = new TestDataFactory();
+        try {
+            tdf.make(parentName).insertData().withChild(childName, 1).insertChilds();
+        } catch (TestDataFactoryException ex) {
+            // Tried to insert a record with a bad value for restricted picklist.
+            return;
+        }
+        Test.stopTest();
+
+        // then
+        List<Account> result = [SELECT Id, (SELECT Id FROM Opportunities) FROM Account];
+        
+        Assert.isNotNull(result, 'Result shouldn\'t be null');
+        Assert.isFalse(result.isEmpty(), 'result should contain records');
+        Assert.areEqual(1, result.size(), 'Result have 1 Account record');
+
+        Assert.isNotNull(result[0].Opportunities, 'Result shouldn\'t be null');
+        Assert.isFalse(result[0].Opportunities.isEmpty(), 'result should contain Opportunities');
+        Assert.areEqual(1, result[0].Opportunities.size(), 'Result have 1 Account record');
+    }
 }

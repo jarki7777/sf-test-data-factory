@@ -1,6 +1,3 @@
-// TO DO:
-// related records: makeOnCascade, makeOnReverseCascade
-
 // Code coverage will plummet well below 75% if the org has no RecordTypes nor dependant picklists
 
 public with sharing class TestDataFactory {
@@ -8,13 +5,15 @@ public with sharing class TestDataFactory {
     @TestVisible
     public SObject obj { get; private set; }
     public List<SObject> objs { get; private set; }
+    public List<SObject> childs;
+    private List<Database.SaveResult> saveResults = new List<Database.SaveResult>();
     private static final String CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz';
     private static final String NUMS = '123456789';
     private static final String BASE64MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
     public TestDataFactory make(String sObjectApiName) {
-        createSObjectInstance(sObjectApiName);
-        populateRequiredFields(getRequiredFields(sObjectApiName));
+        SObject obj = createSObjectInstance(sObjectApiName);
+        this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
         return this;
     }
 
@@ -23,16 +22,16 @@ public with sharing class TestDataFactory {
         this.objs = new List<SObject>();
 
         for (Integer i = 0; i < count; i++) {
-            createSObjectInstance(sObjectApiName);
-            populateRequiredFields(getRequiredFields(sObjectApiName));
+            SObject obj = createSObjectInstance(sObjectApiName);
+            this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
             this.objs.add(this.obj);
         }
         return this;
     }
 
     public TestDataFactory make(String sObjectApiName, String rtDevName) {
-        createSObjectInstance(sObjectApiName, rtDevName);
-        populateRequiredFields(getRequiredFields(sObjectApiName));
+        SObject obj = createSObjectInstance(sObjectApiName, rtDevName);
+        this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
         return this;
     }
 
@@ -41,8 +40,8 @@ public with sharing class TestDataFactory {
         this.objs = new List<SObject>();
 
         for (Integer i = 0; i < count; i++) {
-            createSObjectInstance(sObjectApiName, rtDevName);
-            populateRequiredFields(getRequiredFields(sObjectApiName));
+            SObject obj = createSObjectInstance(sObjectApiName, rtDevName);
+            this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
             this.objs.add(this.obj);
         }
 
@@ -62,33 +61,82 @@ public with sharing class TestDataFactory {
         return this;
     }
 
-    public void insertData() {
+    public TestDataFactory withChild(String childSObjectName, Integer count) {
+
+        if (this.saveResults.isEmpty()) {
+            throw new TestDataFactoryException('Can\'t insert orphan records');
+        }
+
+        List<Schema.ChildRelationship> childRelationships = this.obj.getSObjectType().getDescribe().getChildRelationships();
+        Schema.SObjectType childObj = Schema.getGlobalDescribe().get(childSObjectName);
+        String foreignKey;
+
+        for (Schema.ChildRelationship cr : childRelationships) {
+            if (cr.getChildSObject() == childObj) {
+                foreignKey = cr.getField().getDescribe().getName();
+                break;
+            }
+        }
+
+        this.childs = new List<SObject>();
+
+        for (Database.SaveResult currentParent : this.saveResults) {
+
+            for (Integer i = 0; i < count; i++) {
+
+                SObject obj = createSObjectInstance(childSObjectName);
+                SObject populatedChild = populateRequiredFields(getRequiredFields(childSObjectName), obj);
+                populatedChild.put(foreignKey, currentParent.getId());
+
+                this.childs.add(populatedChild);
+            }
+        }
+        
+        return this;
+    }
+
+    private boolean isBulk() {
+        return this.objs != null && !this.objs.isEmpty();
+    }
+
+    public void insertChilds() {
 
         try {
-            if (this.objs != null && !this.objs.isEmpty()) {
-                insert this.objs;
-            } else {
-                insert this.obj;
-            }            
+            insert this.childs;
         } catch (DmlException ex) {
             throw new TestDataFactoryException(ex);
         }
     }
 
-    @TestVisible
-    private void createSObjectInstance(String sObjectApiName) {
+    public TestDataFactory insertData() {
 
-        SObjectType sObjType = ((SObject) Type.forName(sObjectApiName).newInstance()).getSObjectType();
-        this.obj = sObjType.newSObject();
+        try {
+            if (isBulk()) {
+                this.saveResults = Database.insert(this.objs);
+            } else {
+                this.saveResults.add(Database.insert(this.obj));
+            }            
+        } catch (DmlException ex) {
+            throw new TestDataFactoryException(ex);
+        }
+
+        return this;
     }
 
     @TestVisible
-    private void createSObjectInstance(String sObjectApiName, String rtDevName) {
+    private SObject createSObjectInstance(String sObjectApiName) {
+
+        SObjectType sObjType = ((SObject) Type.forName(sObjectApiName).newInstance()).getSObjectType();
+        return sObjType.newSObject();
+    }
+
+    @TestVisible
+    private SObject createSObjectInstance(String sObjectApiName, String rtDevName) {
 
         SObjectType sObjType = ((SObject) Type.forName(sObjectApiName).newInstance()).getSObjectType();
         Schema.DescribeSObjectResult objDescribe = Schema.getGlobalDescribe().get(sObjectApiName).getDescribe();
         String rtId = objDescribe.getRecordTypeInfosByDeveloperName().get(rtDevName).getRecordTypeId();
-        this.obj = sObjType.newSObject(rtId, true);
+        return sObjType.newSObject(rtId, true);
     }
 
     @TestVisible
@@ -109,7 +157,7 @@ public with sharing class TestDataFactory {
     }
 
     @TestVisible
-    private void populateRequiredFields(Map<String, Schema.SObjectField> requiredFields) {
+    private SObject populateRequiredFields(Map<String, Schema.SObjectField> requiredFields, SObject obj) {
 
         for (String fieldName : requiredFields.keySet()) {
             Object value;
@@ -118,19 +166,21 @@ public with sharing class TestDataFactory {
             Schema.DescribeFieldResult dfr = requiredFields.get(fieldName.toLowerCase()).getDescribe();
             Schema.DisplayType fieldType = dfr.getType();
 
-            Boolean hasValue = this.obj.get(fieldName) != null;
+            Boolean hasValue = obj.get(fieldName) != null;
             Boolean isPickList = dfr.getPicklistValues().size() > 0;
 
             if (dfr.isCreateable() && !hasValue && !isPicklist) {
                 value = getFieldValue(fieldType, currentField);
             } else if (dfr.isCreateable() && !hasValue && isPicklist) {
-                handlePopulatePicklist(currentField);
+                handlePopulatePicklist(currentField, obj);
             }
 
-            if (value != null && this.obj.get(fieldName) == null) {
-                this.obj.put(fieldName, value);
+            if (value != null && obj.get(fieldName) == null) {
+                obj.put(fieldName, value);
             }
         }
+
+        return obj;
     }
 
     @TestVisible
@@ -213,15 +263,15 @@ public with sharing class TestDataFactory {
     }
 
     @TestVisible
-    private void handlePopulatePicklist(Schema.SObjectField field) {
+    private void handlePopulatePicklist(Schema.SObjectField field, SObject obj) {
         
-        populatePicklistFieldWithDependencies(field);
-        populatePicklistField(field);
+        populatePicklistFieldWithDependencies(field, obj);
+        populatePicklistField(field, obj);
         
     }
 
     @TestVisible
-    private void populatePicklistFieldWithDependencies(Schema.SObjectField field) {
+    private void populatePicklistFieldWithDependencies(Schema.SObjectField field, SObject obj) {
 
         Schema.DescribeFieldResult dfr = field.getDescribe();
         Boolean isDependant = dfr.isDependentPicklist();
@@ -230,22 +280,22 @@ public with sharing class TestDataFactory {
             String fieldName = dfr.getName();
             Schema.SObjectField controllerField = dfr.getController();
             String controllerValue = getRandomPicklistValue(controllerField.getDescribe().getPicklistValues());
-            this.obj.put(controllerField.getDescribe().getName(), controllerValue);
+            obj.put(controllerField.getDescribe().getName(), controllerValue);
             
             Map<String, List<Schema.PicklistEntry>> dependencies = getPicklistDependencies(field);
             String dependencyValue = getRandomPicklistValue(dependencies.get(controllerValue));
-            this.obj.put(fieldName, dependencyValue);
+            obj.put(fieldName, dependencyValue);
         }
     }
 
     @TestVisible
-    private void populatePicklistField(Schema.SObjectField field) {
+    private void populatePicklistField(Schema.SObjectField field, SObject obj) {
 
         Schema.DescribeFieldResult dfr = field.getDescribe();
         String fieldName = dfr.getName();
 
-        if (this.obj.get(fieldName) == null) {
-            this.obj.put(fieldName, getRandomPicklistValue(dfr.getPicklistValues()));            
+        if (obj.get(fieldName) == null) {
+            obj.put(fieldName, getRandomPicklistValue(dfr.getPicklistValues()));            
         }
     }
 
