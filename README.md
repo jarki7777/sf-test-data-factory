@@ -35,24 +35,42 @@ To create data for your tests just create a new TestDataFactory instance and use
 ````java
 @TestSetup
 static void makeData() {
-    TestDataFactory tdf = new TestDataFactory();
+    // the simplest way:
+    TestDataFactory tdf = new TestDataFactory('Account')
+        .create()
+        .insertData();
 
-    // teh simplest way:
-    tdf.make('Account').insertData();
-
-
+    //////////////////////////////////////////////////////
     // populate some fields before inserting the data:
-    tdf.make('Account')
+    TestDataFactory tdf = new TestDataFactory('Account')
+        .create()
         .withField('Name', 'tdf account')
         .withField('Type', 'Prospect')
         .withField('Industry', 'Technology')
         .insertData();
 
+    //////////////////////////////////////////////////////
     // just create for later manipulation:
-    tdf.make('Case', 10);
+    TestDataFactory tdf = new TestDataFactory('Account')
+        .count(10)
+        .create();
     List<Case> c = (List<Case>) tdf.objs;
     // do stuff to your cases befor insert;
     insert c;
+
+    //////////////////////////////////////////////////////
+    // Use all the features:
+    TestDataFactory tdf = new TestDataFactory('Account')
+        .count(3)
+        .recordType('MyAcctRecordTypeApiName')
+        .withField('Type', 'Prospect')
+        .create()
+        .insertData()
+        .withChild('Opportunity')
+        .withChildCount(5)
+        .withChildRecordType('MyOppRecordTypeApiName')
+        .createChildren()
+        .insertChildren();
 }
 ````
 #
