@@ -3,45 +3,41 @@
 public with sharing class TestDataFactory {
 
     @TestVisible
-    public SObject obj { get; private set; }
+    private SObject obj;
     public List<SObject> objs { get; private set; }
     public List<SObject> childs;
     private List<Database.SaveResult> saveResults = new List<Database.SaveResult>();
     private static final String CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz';
     private static final String NUMS = '123456789';
     private static final String BASE64MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    private String sObjectApiName;
+    private Integer count = 1;
+    private String rtDevName;
+    private String childApiName;
+    private Integer childCount = 1;
+    private String childRtDevName;
 
-    public TestDataFactory make(String sObjectApiName) {
-        SObject obj = createSObjectInstance(sObjectApiName);
-        this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
+    public TestDataFactory(String sObjectApiName) {
+        this.sObjectApiName = sObjectApiName;
+    }
+
+    public TestDataFactory count(Integer count) {
+        this.count = count;
         return this;
     }
 
-    public TestDataFactory make(String sObjectApiName, Integer count) {
+    public TestDataFactory recordType(String rtDevName) {
+        this.rtDevName = rtDevName;
+        return this;
+    }
 
+    public TestDataFactory create() {
         this.objs = new List<SObject>();
 
-        for (Integer i = 0; i < count; i++) {
-            SObject obj = createSObjectInstance(sObjectApiName);
-            this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
-            this.objs.add(this.obj);
-        }
-        return this;
-    }
+        for (Integer i = 0; i < this.count; i++) {
 
-    public TestDataFactory make(String sObjectApiName, String rtDevName) {
-        SObject obj = createSObjectInstance(sObjectApiName, rtDevName);
-        this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
-        return this;
-    }
-
-    public TestDataFactory make(String sObjectApiName, String rtDevName, Integer count) {
-
-        this.objs = new List<SObject>();
-
-        for (Integer i = 0; i < count; i++) {
-            SObject obj = createSObjectInstance(sObjectApiName, rtDevName);
-            this.obj = populateRequiredFields(getRequiredFields(sObjectApiName), obj);
+            SObject obj = createSObjectInstance();
+            this.obj = populateRequiredFields(getRequiredFields(this.sObjectApiName), obj);
             this.objs.add(this.obj);
         }
 
@@ -50,25 +46,42 @@ public with sharing class TestDataFactory {
 
     public TestDataFactory withField(String name, Object value) {
 
-        if (this.objs != null) {
-            for (SObject currentObj : this.objs) {
-                currentObj.put(name, value);
-            }
-        } else {
-            this.obj.put(name, value);
+        if (this.objs == null || this.objs.isEmpty()) {
+            throw new TestDataFactoryException('Object must be created before specifiying fields');
+        }
+
+        for (SObject currentObj : this.objs) {
+            currentObj.put(name, value);
         }
 
         return this;
     }
 
-    public TestDataFactory withChild(String childSObjectName, Integer count) {
+    public TestDataFactory withChild(String childSObjectName) {
+        this.childApiName = childSObjectName;
+        return this;
+    }
+
+    public TestDataFactory withChildCount(Integer count) {
+        this.childCount = count;
+        return this;
+    }
+
+    public TestDataFactory withChildRecordType(String childRtDevName) {
+        this.childRtDevName = childRtDevName;
+        return this;
+    }
+
+    public TestDataFactory createChildren() {
 
         if (this.saveResults.isEmpty()) {
             throw new TestDataFactoryException('Can\'t insert orphan records');
+        } else if (this.childApiName == null) {
+            throw new TestDataFactoryException('Specify the child record API name');
         }
 
         List<Schema.ChildRelationship> childRelationships = this.obj.getSObjectType().getDescribe().getChildRelationships();
-        Schema.SObjectType childObj = Schema.getGlobalDescribe().get(childSObjectName);
+        Schema.SObjectType childObj = Schema.getGlobalDescribe().get(this.childApiName);
         String foreignKey;
 
         for (Schema.ChildRelationship cr : childRelationships) {
@@ -82,10 +95,10 @@ public with sharing class TestDataFactory {
 
         for (Database.SaveResult currentParent : this.saveResults) {
 
-            for (Integer i = 0; i < count; i++) {
+            for (Integer i = 0; i < this.childCount; i++) {
 
-                SObject obj = createSObjectInstance(childSObjectName);
-                SObject populatedChild = populateRequiredFields(getRequiredFields(childSObjectName), obj);
+                SObject obj = createChildSObjectInstance();
+                SObject populatedChild = populateRequiredFields(getRequiredFields(this.childApiName), obj);
                 populatedChild.put(foreignKey, currentParent.getId());
 
                 this.childs.add(populatedChild);
@@ -95,27 +108,10 @@ public with sharing class TestDataFactory {
         return this;
     }
 
-    private boolean isBulk() {
-        return this.objs != null && !this.objs.isEmpty();
-    }
-
-    public void insertChilds() {
+    public TestDataFactory insertChildren() {
 
         try {
             insert this.childs;
-        } catch (DmlException ex) {
-            throw new TestDataFactoryException(ex);
-        }
-    }
-
-    public TestDataFactory insertData() {
-
-        try {
-            if (isBulk()) {
-                this.saveResults = Database.insert(this.objs);
-            } else {
-                this.saveResults.add(Database.insert(this.obj));
-            }            
         } catch (DmlException ex) {
             throw new TestDataFactoryException(ex);
         }
@@ -123,19 +119,24 @@ public with sharing class TestDataFactory {
         return this;
     }
 
-    @TestVisible
-    private SObject createSObjectInstance(String sObjectApiName) {
-
-        SObjectType sObjType = ((SObject) Type.forName(sObjectApiName).newInstance()).getSObjectType();
-        return sObjType.newSObject();
+    public TestDataFactory insertData() {
+        this.saveResults = Database.insert(this.objs);
+        return this;
     }
 
     @TestVisible
-    private SObject createSObjectInstance(String sObjectApiName, String rtDevName) {
+    private SObject createSObjectInstance() {
+        SObjectType sObjType = ((SObject) Type.forName(this.sObjectApiName).newInstance()).getSObjectType();
+        Schema.DescribeSObjectResult objDescribe = Schema.getGlobalDescribe().get(this.sObjectApiName).getDescribe();
+        String rtId = objDescribe.getRecordTypeInfosByDeveloperName()?.get(this.rtDevName)?.getRecordTypeId();
+        return sObjType.newSObject(rtId, true);
+    }
 
-        SObjectType sObjType = ((SObject) Type.forName(sObjectApiName).newInstance()).getSObjectType();
-        Schema.DescribeSObjectResult objDescribe = Schema.getGlobalDescribe().get(sObjectApiName).getDescribe();
-        String rtId = objDescribe.getRecordTypeInfosByDeveloperName().get(rtDevName).getRecordTypeId();
+    @TestVisible
+    private SObject createChildSObjectInstance() {
+        SObjectType sObjType = ((SObject) Type.forName(this.childApiName).newInstance()).getSObjectType();
+        Schema.DescribeSObjectResult objDescribe = Schema.getGlobalDescribe().get(this.childApiName).getDescribe();
+        String rtId = objDescribe.getRecordTypeInfosByDeveloperName()?.get(this.childRtDevName)?.getRecordTypeId();
         return sObjType.newSObject(rtId, true);
     }
 
@@ -184,7 +185,7 @@ public with sharing class TestDataFactory {
     }
 
     @TestVisible
-    private Object getFieldValue(Schema.DisplayType fieldType, Schema.SObjectField currentField) {
+    private static Object getFieldValue(Schema.DisplayType fieldType, Schema.SObjectField currentField) {
         
         Object value;
 
@@ -206,7 +207,7 @@ public with sharing class TestDataFactory {
     }
 
     @TestVisible
-    private Object getFieldValue(Schema.DisplayType fieldType) {
+    private static Object getFieldValue(Schema.DisplayType fieldType) {
         
         Object value;
 
@@ -263,7 +264,7 @@ public with sharing class TestDataFactory {
     }
 
     @TestVisible
-    private void handlePopulatePicklist(Schema.SObjectField field, SObject obj) {
+    private static void handlePopulatePicklist(Schema.SObjectField field, SObject obj) {
         
         populatePicklistFieldWithDependencies(field, obj);
         populatePicklistField(field, obj);
@@ -271,7 +272,7 @@ public with sharing class TestDataFactory {
     }
 
     @TestVisible
-    private void populatePicklistFieldWithDependencies(Schema.SObjectField field, SObject obj) {
+    private static void populatePicklistFieldWithDependencies(Schema.SObjectField field, SObject obj) {
 
         Schema.DescribeFieldResult dfr = field.getDescribe();
         Boolean isDependant = dfr.isDependentPicklist();
@@ -289,7 +290,7 @@ public with sharing class TestDataFactory {
     }
 
     @TestVisible
-    private void populatePicklistField(Schema.SObjectField field, SObject obj) {
+    private static void populatePicklistField(Schema.SObjectField field, SObject obj) {
 
         Schema.DescribeFieldResult dfr = field.getDescribe();
         String fieldName = dfr.getName();

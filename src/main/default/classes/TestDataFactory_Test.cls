@@ -8,17 +8,17 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        tdf.make(sObjectApiName);
-        Account acct = (Account) tdf.obj;
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName).create();
+
+        List<Account> acct = (List<Account>) tdf.objs;
         Test.stopTest();
 
         // when
         List<Account> persistedAccts = [SELECT Id FROM Account];
 
         Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
-        Assert.isNotNull(acct, 'Result shouldn\'t be null');
-        Assert.isNotNull(acct.Name, 'Account Name is required');
+        Assert.isFalse(acct.isEmpty(), 'Result shouldn\'t be empty');
+        Assert.isNotNull(acct[0].Name, 'Account Name is required');
     }
 
     @IsTest
@@ -29,8 +29,10 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        tdf.make(sObjectApiName, count);
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName)
+            .count(count)
+            .create();
+
         List<Account> accts = (List<Account>) tdf.objs;
         Test.stopTest();
 
@@ -39,9 +41,33 @@ private class TestDataFactory_Test {
 
         Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
         Assert.isNotNull(accts, 'Result shouldn\'t be null');
+
         for (Account acct : accts) {
             Assert.isNotNull(acct.Name, 'Account Name is required');
         }
+    }
+
+    @IsTest
+    static void itShouldThrowExceptionWithField() {
+        // given
+        String sObjectApiName = 'Account';
+        String name = 'Website';
+        String value = 'https://www.salesforce.com/';
+
+        // when
+        Test.startTest();
+        TestDataFactoryException ex;
+        try {
+            TestDataFactory tdf = new TestDataFactory(sObjectApiName).withField(name, value);            
+        } catch (TestDataFactoryException thrownEx) {
+            ex = thrownEx;
+        }
+
+        Test.stopTest();
+
+        // then
+        String message = 'Object must be created before specifiying fields';
+        Assert.isTrue(ex.getMessage() == message, 'Exception was expected');
     }
 
     @IsTest
@@ -53,19 +79,20 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        tdf.make(sObjectApiName)
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName)
+            .create()
             .withField(name, value);
-        Account acct = (Account) tdf.obj;
+
+        List<Account> acct = (List<Account>) tdf.objs;
         Test.stopTest();
 
         // then
         List<Account> persistedAccts = [SELECT Id FROM Account];
 
         Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
-        Assert.isNotNull(acct, 'Result shouldn\'t be null');
-        Assert.isNotNull(acct.Name, 'Account Name is required');
-        Assert.areEqual(value, acct.Website, 'Website should be the specified');
+        Assert.isFalse(acct.isEmpty(), 'Result shouldn\'t be empty');
+        Assert.isNotNull(acct[0].Name, 'Account Name is required');
+        Assert.areEqual(value, acct[0].Website, 'Website should be the specified');
     }
 
     @IsTest
@@ -77,9 +104,11 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        tdf.make(sObjectApiName, 10)
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName)
+            .count(2)
+            .create()
             .withField(name, value);
+
         List<Account> accts = (List<Account>) tdf.objs;
         Test.stopTest();
 
@@ -106,17 +135,19 @@ private class TestDataFactory_Test {
 
             // when
             Test.startTest();
-            TestDataFactory tdf = new TestDataFactory();
-            tdf.make(sObjectApiName, rtDevName);
-            SObject obj = tdf.obj;
+            TestDataFactory tdf = new TestDataFactory(sObjectApiName)
+                .recordType(rtDevName)
+                .create();
+
+            List<SObject> obj = tdf.objs;
             Test.stopTest();
 
             // then
-            List<Account> persistedAccts = Database.query('SELECT Id, RecordTypeId FROM ' + sObjectApiName);
+            List<SObject> persistedObjs = Database.query('SELECT Id, RecordTypeId FROM ' + sObjectApiName);
 
-            Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
-            Assert.isNotNull(obj, 'Result shouldn\'t be null');
-            Assert.areEqual(rt[0].Id, obj.get('RecordTypeId'), 'Result should be successfull');
+            Assert.isTrue(persistedObjs.isEmpty(), 'No data should\'ve ben inserted');
+            Assert.isFalse(obj.isEmpty(), 'Result shouldn\'t be empty');
+            Assert.areEqual(rt[0].Id, obj[0].get('RecordTypeId'), 'Result should be successfull');
         }
     }
 
@@ -132,17 +163,21 @@ private class TestDataFactory_Test {
 
             // when
             Test.startTest();
-            TestDataFactory tdf = new TestDataFactory();
-            tdf.make(sObjectApiName, rtDevName, count);
+            TestDataFactory tdf = new TestDataFactory(sObjectApiName)
+                .recordType(rtDevName)
+                .count(count)
+                .create();
+
             List<SObject> objs = tdf.objs;
             Test.stopTest();
 
             // then
-            List<Account> persistedAccts = Database.query('SELECT Id, RecordTypeId FROM ' + sObjectApiName);
+            List<SObject> persistedObjs = Database.query('SELECT Id, RecordTypeId FROM ' + sObjectApiName);
 
-            Assert.isTrue(persistedAccts.isEmpty(), 'No data should\'ve ben inserted');
+            Assert.isTrue(persistedObjs.isEmpty(), 'No data should\'ve ben inserted');
             Assert.areEqual(count, objs.size());
             Assert.isNotNull(objs, 'Result shouldn\'t be null');
+
             for (SObject obj : objs) {
                 Assert.areEqual(rt[0].Id, obj.get('RecordTypeId'), 'Result should be successfull');
             }
@@ -155,10 +190,11 @@ private class TestDataFactory_Test {
         String sObjectApiName = 'Account';
 
         // when
-        Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
+        Test.startTest();        
         try {
-            tdf.make(sObjectApiName).insertData();
+            TestDataFactory tdf = new TestDataFactory(sObjectApiName)
+                .create()
+                .insertData();
         } catch (TestDataFactoryException ex) {
             // Tried to insert a record with a bad value for restricted picklist.
             return;
@@ -180,9 +216,11 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
         try {
-            tdf.make(sObjectApiName, 10).insertData();
+            TestDataFactory tdf = new TestDataFactory(sObjectApiName)
+                .count(count)
+                .create()
+                .insertData();
         } catch (TestDataFactoryException ex) {
             // Tried to insert a record with a bad value for restricted picklist.
             return;
@@ -203,8 +241,8 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        SObject obj = tdf.createSObjectInstance(sObjectApiName);
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName);
+        SObject obj = tdf.createSObjectInstance();
         Test.stopTest();
 
         // then
@@ -219,7 +257,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName);
         Map<String, Schema.SObjectField> rf = tdf.getRequiredFields(sObjectApiName);
         Test.stopTest();
 
@@ -235,8 +273,8 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        SObject obj = tdf.createSObjectInstance(sObjectApiName);
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName);
+        SObject obj = tdf.createSObjectInstance();
         tdf.populateRequiredFields(tdf.getRequiredFields(sObjectApiName), obj);
         Account acct = (Account) obj; 
         Test.stopTest();
@@ -255,8 +293,8 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        SObject obj = tdf.createSObjectInstance(sObjectApiName);
+        TestDataFactory tdf = new TestDataFactory(sObjectApiName);
+        SObject obj = tdf.createSObjectInstance();
         tdf.populateRequiredFields(pickListMap, obj);
         Account acct = (Account) obj; 
         Test.stopTest();
@@ -363,8 +401,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type, field);
+        Object value = TestDataFactory.getFieldValue(type, field);
         Test.stopTest();
 
         // then
@@ -380,8 +417,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type, field);
+        Object value = TestDataFactory.getFieldValue(type, field);
         Test.stopTest();
 
         // then
@@ -396,8 +432,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type);
+        Object value = TestDataFactory.getFieldValue(type);
         Test.stopTest();
 
         // then
@@ -412,8 +447,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type);
+        Object value = TestDataFactory.getFieldValue(type);
         Test.stopTest();
 
         // then
@@ -428,8 +462,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type);
+        Object value = TestDataFactory.getFieldValue(type);
         Test.stopTest();
 
         // then
@@ -444,8 +477,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type);
+        Object value = TestDataFactory.getFieldValue(type);
         Test.stopTest();
 
         // then
@@ -460,13 +492,12 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        tdf.obj = new Account(Name = 'Test');
-        tdf.handlePopulatePicklist(field, tdf.obj);
+        Account obj = new Account(Name = 'Test');
+        TestDataFactory.handlePopulatePicklist(field, obj);
         Test.stopTest();
 
         // then
-        Assert.isNotNull(tdf.obj.get('type'), 'type shouldn\'t be null');
+        Assert.isNotNull(obj.get('type'), 'type shouldn\'t be null');
     }
 
     @IsTest
@@ -477,8 +508,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type, field);
+        Object value = TestDataFactory.getFieldValue(type, field);
         Test.stopTest();
 
         // then
@@ -493,8 +523,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type);
+        Object value = TestDataFactory.getFieldValue(type);
         Test.stopTest();
 
         // then
@@ -510,8 +539,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type);
+        Object value = TestDataFactory.getFieldValue(type);
         Test.stopTest();
 
         // then
@@ -526,8 +554,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type);
+        Object value = TestDataFactory.getFieldValue(type);
         Test.stopTest();
 
         // then
@@ -543,8 +570,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type, field);
+        Object value = TestDataFactory.getFieldValue(type, field);
         Test.stopTest();
 
         // then
@@ -600,8 +626,7 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        Object value = tdf.getFieldValue(type, field);
+        Object value = TestDataFactory.getFieldValue(type, field);
         Test.stopTest();
 
         // then
@@ -620,13 +645,12 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        tdf.obj = new Account(Name = 'Test');
-        tdf.handlePopulatePicklist(field, tdf.obj);
+        Account obj = new Account(Name = 'Test');
+        TestDataFactory.handlePopulatePicklist(field, obj);
         Test.stopTest();
 
         // then
-        Assert.isNotNull(tdf.obj.get('YOUR_MULTIPICKLIST_FIELD__c'), 'YOUR_MULTIPICKLIST_FIELD__c shouldn\'t be null');
+        Assert.isNotNull(obj.get('YOUR_MULTIPICKLIST_FIELD__c'), 'YOUR_MULTIPICKLIST_FIELD__c shouldn\'t be null');
     }
 
     // Uncomment this in case your org has dependent picklists and modify accordingly
@@ -639,15 +663,14 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
-        tdf.obj = new Account(Name = 'Test');
-        tdf.populatePicklistFieldWithDependencies(dependantField, tdf.obj);
+        Account obj = new Account(Name = 'Test');
+        TestDataFactory.populatePicklistFieldWithDependencies(dependantField, obj);
 
         Test.stopTest();
 
         // then
-        Assert.isNotNull(tdf.obj.get(dependantName), 'YOUR_DEPENDANT_FIELD__c shouldn\'t be null');
-        Assert.isNotNull(tdf.obj.get(controllerName), 'controllerName shouldn\'t be null');
+        Assert.isNotNull(obj.get(dependantName), 'YOUR_DEPENDANT_FIELD__c shouldn\'t be null');
+        Assert.isNotNull(obj.get(controllerName), 'controllerName shouldn\'t be null');
     }
 
     @IsTest
@@ -658,9 +681,14 @@ private class TestDataFactory_Test {
 
         // when
         Test.startTest();
-        TestDataFactory tdf = new TestDataFactory();
         try {
-            tdf.make(parentName).insertData().withChild(childName, 1).insertChilds();
+            TestDataFactory tdf = new TestDataFactory(parentName)
+                .create()
+                .insertData()
+                .withChild(childName)
+                .withChildCount(1)
+                .createChildren()
+                .insertChildren();
         } catch (TestDataFactoryException ex) {
             // Tried to insert a record with a bad value for restricted picklist.
             return;
@@ -677,5 +705,59 @@ private class TestDataFactory_Test {
         Assert.isNotNull(result[0].Opportunities, 'Result shouldn\'t be null');
         Assert.isFalse(result[0].Opportunities.isEmpty(), 'result should contain Opportunities');
         Assert.areEqual(1, result[0].Opportunities.size(), 'Result have 1 Account record');
+    }
+
+    @IsTest
+    static void itShouldThrowOrphanRecordException() {
+        // given
+        String parentName = 'Account';
+        String childName = 'Opportunity';
+
+        // when
+        Test.startTest();
+        TestDataFactoryException ex;
+        try {
+            TestDataFactory tdf = new TestDataFactory(parentName)
+                .create()
+                .withChild(childName)
+                .withChildCount(1)
+                .createChildren()
+                .insertChildren();
+        } catch (TestDataFactoryException thrownEx) {
+            ex = thrownEx;
+        }
+        Test.stopTest();
+
+        // then
+        String message = 'Can\'t insert orphan records';
+        Assert.isNotNull(ex, 'Exception was expected');
+        Assert.isTrue(ex.getMessage() == message, 'Orphan records Exception was expected');
+    }
+
+    @IsTest
+    static void itShouldThrowChildNameException() {
+        // given
+        String parentName = 'Account';
+        String childName = 'Opportunity';
+
+        // when
+        Test.startTest();
+        TestDataFactoryException ex;
+        try {
+            TestDataFactory tdf = new TestDataFactory(parentName)
+                .create()
+                .insertData()
+                .withChildCount(1)
+                .createChildren()
+                .insertChildren();
+        } catch (TestDataFactoryException thrownEx) {
+            ex = thrownEx;
+        }
+        Test.stopTest();
+
+        // then
+        String message = 'Specify the child record API name';
+        Assert.isNotNull(ex, 'Exception was expected');
+        Assert.isTrue(ex.getMessage() == message, 'Child name Exception was expected');
     }
 }
